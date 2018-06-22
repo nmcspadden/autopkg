@@ -19,7 +19,6 @@ import os.path
 import re
 import subprocess
 import time
-import xattr
 import tempfile
 
 from autopkglib import Processor, ProcessorError
@@ -28,6 +27,10 @@ try:
 except ImportError:
     BUNDLE_ID = "com.github.autopkg"
 
+try:
+    import xattr
+except ImportError:
+    from autopkglib.pyads import pyads
 
 __all__ = ["URLDownloader"]
 
