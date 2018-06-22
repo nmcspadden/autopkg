@@ -21,29 +21,65 @@ import sys
 import imp
 import FoundationPlist
 import pprint
+import platform
 import re
 import subprocess
 import glob
 
-#pylint: disable=no-name-in-module
-try:
-    from Foundation import NSArray, NSDictionary
-    from CoreFoundation import CFPreferencesAppSynchronize, \
-                               CFPreferencesCopyAppValue, \
-                               CFPreferencesCopyKeyList, \
-                               CFPreferencesSetAppValue, \
-                               kCFPreferencesAnyHost, \
-                               kCFPreferencesAnyUser, \
-                               kCFPreferencesCurrentUser, \
-                               kCFPreferencesCurrentHost
-except:
-    print "WARNING: Failed 'from Foundation import NSArray, NSDictionary' in " + __name__
-    print "WARNING: Failed 'from CoreFoundation import CFPreferencesAppSynchronize, ...' in " + __name__
-#pylint: enable=no-name-in-module
-
 from distutils.version import LooseVersion
 
+
+def memoize(func):
+    """
+    Decorator to memoize results of function calls.
+    Works with functions that have no args.
+    https://www.thumbtack.com/engineering/a-primer-on-python-decorators/
+    """
+    cache = {}
+    def wrapper(*args):
+        try:
+            return cache[args]
+        except KeyError:
+            result = cache[args] = func(*args)
+            return result
+    return wrapper
+
+
+@memoize
+def is_mac():
+    """Return True if current OS is macOS."""
+    return 'Darwin' in platform.platform()
+
+
+@memoize
+def is_windows():
+    """Return True if current OS is Windows."""
+    return 'Windows' in platform.platform()
+
+
+#pylint: disable=no-name-in-module
+if is_mac():
+    try:
+        from Foundation import NSArray, NSDictionary
+        from CoreFoundation import CFPreferencesAppSynchronize, \
+                                   CFPreferencesCopyAppValue, \
+                                   CFPreferencesCopyKeyList, \
+                                   CFPreferencesSetAppValue, \
+                                   kCFPreferencesAnyHost, \
+                                   kCFPreferencesAnyUser, \
+                                   kCFPreferencesCurrentUser, \
+                                   kCFPreferencesCurrentHost
+    except:
+        print "WARNING: Failed 'from Foundation import NSArray, NSDictionary' in " + __name__
+        print "WARNING: Failed 'from CoreFoundation import CFPreferencesAppSynchronize, ...' in " + __name__
+elif is_windows():
+    import _winreg
+    import plistlib
+#pylint: enable=no-name-in-module
+
+
 BUNDLE_ID = "com.github.autopkg"
+BUNDLE_REG = "Software\AutoPkg"
 
 RE_KEYREF = re.compile(r'%(?P<key>[a-zA-Z_][a-zA-Z_0-9]*)%')
 
@@ -52,7 +88,24 @@ class PreferenceError(Exception):
     pass
 
 
-def get_pref(key, domain=BUNDLE_ID):
+@memoize
+def get_domain():
+    """Return the preference domain based on platform."""
+    if is_mac():
+        return BUNDLE_ID
+    elif is_windows():
+        return BUNDLE_REG
+
+
+def get_pref(key, domain=get_domain()):
+    """Return a single pref value (or None) for a domain."""
+    if is_mac():
+        return get_pref_mac(key, domain)
+    elif is_windows():
+        return get_pref_win(key, domain)
+
+
+def get_pref_mac(key, domain=get_domain()):
     """Return a single pref value (or None) for a domain."""
     value = CFPreferencesCopyAppValue(key, domain)
     # Casting NSArrays and NSDictionaries to native Python types.
@@ -66,7 +119,67 @@ def get_pref(key, domain=BUNDLE_ID):
     return value
 
 
-def set_pref(key, value, domain=BUNDLE_ID):
+def get_pref_win(key, domain=get_domain()):
+    """Return a single pref value (or None) from the Windows preferences."""
+    try:
+        reg_key = _winreg.OpenKey(
+            _winreg.HKEY_CURRENT_USER,
+            domain
+        )
+        raw_value = _winreg.QueryValueEx(reg_key, key)[0]
+        _winreg.CloseKey(reg_key)
+        # Check for expansions in here
+        if isinstance(raw_value, list):
+            value = []
+            # We have to expand each of the inside values
+            for val in raw_value:
+                value.append(os.path.expandvars(val))
+        elif isinstance(raw_value, basestring):
+            # Strings can be freely expanded, even if they don't contain
+            # expansion variables
+            value = os.path.expandvars(raw_value)
+        else:
+            # Probably an int or bool
+            value = raw_value
+        return value
+    except WindowsError as e:
+        # If we can't access the registry key, assume None
+        return None
+    """
+>>> key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Software\AutoPkg")
+>>> try:
+...   i = 0
+...   while True:
+...     name, value, type = _winreg.EnumValue(key, i)
+...     print repr(name),
+...     i += 1
+... except WindowsError:
+...   print
+...
+'CACHE_DIR' 'MUNKI_REPO' 'RECIPE_REPO_DIR' 'GIT_PATH' 'RECIPE_SEARCH_DIRS' 'RECIPE_OVERRIDE_DIRS'
+Querying a key:
+>>> _winreg.QueryValueEx(key, "CACHE_DIR")
+(u'%USERPROFILE%\\Documents\\AutoPkg\\Cache', 2)
+>>> cache_dir = _winreg.QueryValueEx(key, "CACHE_DIR")
+>>> os.path.expandvars(cache_dir[0])
+u'C:\\Users\\nmcspadden\\Documents\\AutoPkg\\Cache'
+Setting a key:
+>>> key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Software\AutoPkg", 0, _winreg.KEY_ALL_ACCESS)
+>>> _winreg.SetValueEx(key, "RECIPE_SEARCH_DIRS", 0, _winreg.REG_MULTI_SZ, ["path1", "path2"])
+>>> _winreg.QueryValueEx(key, "RECIPE_SEARCH_DIRS")
+([u'path1', u'path2'], 7)
+"""
+
+
+def set_pref(key, value, domain=get_domain()):
+    """Sets a preference for domain"""
+    if is_mac():
+        return set_pref_mac(key, value, domain)
+    elif is_windows():
+        return set_pref_win(key, value, domain)
+
+
+def set_pref_mac(key, value, domain=get_domain()):
     """Sets a preference for domain"""
     try:
         CFPreferencesSetAppValue(key, value, domain)
@@ -78,7 +191,48 @@ def set_pref(key, value, domain=BUNDLE_ID):
             "Could not set %s preference: %s" % (key, err))
 
 
-def get_all_prefs(domain=BUNDLE_ID):
+def set_pref_win(key, value, domain=get_domain()):
+    """Set a value for a Windows registry key."""
+    print "***KEY: {}".format(key)
+    print "***SET: {}".format(value)
+    try:
+        reg_key = _winreg.OpenKey(
+            _winreg.HKEY_CURRENT_USER,
+            domain,
+            0,
+            _winreg.KEY_WRITE
+        )
+        key_type = _winreg.REG_NONE
+        if isinstance(value, dict):
+            # This is sort of special case code for RECIPE_REPOS
+            # Dicts are hard, because we have to create subkeys
+            # 1. Create RECIPE_REPO key
+            # 2. Call set_pref_win recursively!
+            sub_reg_key = _winreg.OpenKey(
+                _winreg.HKEY_CURRENT_USER,
+                os.path.join(domain, key),
+                0,
+                _winreg.KEY_WRITE
+            )
+            # TODO: FINISH THIS!!!
+            return
+        if isinstance(value, list):
+            key_type = _winreg.REG_MULTI_SZ
+        elif isinstance(value, basestring):
+            key_type = _winreg.REG_SZ
+        elif isinstance(value, int) or isinstance(value, bool):
+            key_type = _winreg.REG_DWORD
+        _winreg.SetValueEx(reg_key, key, 0, key_type, value)
+        _winreg.CloseKey(reg_key)
+    except (WindowsError, TypeError) as e:
+        _winreg.CloseKey(reg_key)
+        raise PreferenceError(
+            "Unable to set %s key to value %s with type %s: %s" % (
+                key, value, key_type, e)
+        )
+
+
+def get_all_prefs(domain=get_domain()):
     """Return a dict (or an empty dict) with the contents of all
     preferences in the domain."""
     prefs = {}
