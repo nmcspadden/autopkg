@@ -24,6 +24,7 @@ import os
 import operator
 import optparse
 import pprint
+import platform
 import re
 import shutil
 import subprocess
@@ -51,7 +52,7 @@ if sys.platform != 'darwin':
 
 try:
     import FoundationPlist
-except:
+except ImportError:
     print 'WARNING: importing plistlib as FoundationPlist;'
     print 'WARNING: some plist formats will be unsupported'
     import plistlib as FoundationPlist
@@ -824,7 +825,7 @@ def do_gh_code_search(query, use_token=False):
         "/search/code",
         query=query,
         accept="application/vnd.github.v3.text-match+json")
-    
+
     if code == 403:
         log_err(
                 "You've probably hit the GitHub's search rate limit, officially 5 "
@@ -833,7 +834,7 @@ def do_gh_code_search(query, use_token=False):
             log_err("Server response follows:\n")
             log_err(results.get("message", None))
             log_err(results.get("documentation_url", None))
-            
+
         return None
     if results is None or code is None:
         log_err("A GitHub API error occurred!")
@@ -2423,7 +2424,7 @@ def main(argv):
     }
 
     # Warn against running as root
-    if os.getuid() == 0:
+    if 'Windows' not in platform.platform() and os.getuid() == 0:
         log_err("\n" + "WARNING! " * 8 + "\n")
         log_err(
             "    Running AutoPkg as root or using `sudo` is not recommended!\n"
