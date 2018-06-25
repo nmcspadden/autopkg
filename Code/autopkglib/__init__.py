@@ -101,7 +101,7 @@ def get_pref(key, domain=get_domain()):
     """Return a single pref value (or None) for a domain."""
     if is_mac():
         return get_pref_mac(key, domain)
-    elif is_windows():
+    if is_windows():
         return get_pref_win(key, domain)
 
 
@@ -176,7 +176,7 @@ def set_pref(key, value, domain=get_domain()):
     """Sets a preference for domain"""
     if is_mac():
         return set_pref_mac(key, value, domain)
-    elif is_windows():
+    if is_windows():
         return set_pref_win(key, value, domain)
 
 
@@ -258,6 +258,14 @@ def set_pref_win(key, value, domain=get_domain()):
 
 
 def get_all_prefs(domain=get_domain()):
+    """Return all preferences based on platform."""
+    if is_mac():
+        return get_all_prefs_mac(domain)
+    if is_windows():
+        return get_all_prefs_win(domain)
+
+
+def get_all_prefs_mac(domain=get_domain()):
     """Return a dict (or an empty dict) with the contents of all
     preferences in the domain."""
     prefs = {}
@@ -278,6 +286,49 @@ def get_all_prefs(domain=get_domain()):
             for key in keylist:
                 prefs[key] = get_pref(key, domain)
     return prefs
+
+
+def get_all_prefs_win(domain=get_domain()):
+    """Get all preferences from the AutoPkg registry key."""
+    print "***get_all_prefs_win: DOMAIN: {}".format(domain)
+    # Create a dictionary of a registry key.
+    reg_dict = {}
+    try:
+        reg_key = _winreg.OpenKey(
+            _winreg.HKEY_CURRENT_USER,
+            domain
+        )
+        i = 0
+        while True:
+            # We'll index each subkey one at a time
+            try:
+                (keyname, value, type) = _winreg.EnumValue(reg_key, i)
+                reg_dict[keyname] = value
+                print "***Key: {} Value: {} Index: {}".format(keyname, value, i)
+                i += 1
+            except WindowsError:
+                # We've run out of subkeys to index
+                break
+        print "***Now checking subfolders"
+        # Now get all the subfolders
+        i = 0
+        while True:
+            try:
+                subkeyname = _winreg.EnumKey(reg_key, i)
+                new_domain = os.path.join(domain, subkeyname)
+                print "***Recursing: Key: {} Index: {}".format(new_domain, i)
+                # RECURSION!!!!
+                reg_dict[subkeyname] = get_all_prefs_win(new_domain)
+                i += 1
+            except WindowsError:
+                # We've run out of subfolders to index
+                break
+        print "***Reg_dict: {}".format(reg_dict)
+        return reg_dict
+    except WindowsError as e:
+        raise ProcessorError(
+            "Unable to open registry hive: %s" % e
+        )
 
 
 def get_identifier(recipe):
