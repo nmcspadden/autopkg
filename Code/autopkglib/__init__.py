@@ -193,7 +193,7 @@ def set_pref_mac(key, value, domain=get_domain()):
 
 def set_pref_win(key, value, domain=get_domain()):
     """Set a value for a Windows registry key."""
-    print "***KEY: {}, VALUE: {}".format(key, value)
+    print "***Calling set_pref_win, KEY: {}, VALUE: {} DOMAIN: {}".format(key, value, domain)
     try:
         reg_key = _winreg.OpenKey(
             _winreg.HKEY_CURRENT_USER,
@@ -201,8 +201,8 @@ def set_pref_win(key, value, domain=get_domain()):
             0,
             _winreg.KEY_WRITE
         )
-    except WindowsError:
-        print "***Unable to open {}, creating".format(domain)
+    except WindowsError as e:
+        print "***Unable to open {}, creating: {}".format(domain, e)
         # If we can't open the key, try creating it!
         try:
             reg_key = _winreg.CreateKey(
@@ -216,29 +216,22 @@ def set_pref_win(key, value, domain=get_domain()):
     try:
         key_type = _winreg.REG_NONE
         if isinstance(value, dict):
-            # This is sort of special case code for RECIPE_REPOS
-            # Dicts are hard, because we have to create subkeys
-            new_domain = os.path.join(domain, os.path.basename(key)) # THIS CAUSES A PROBLEM
-            # Since the RECIPE_REPO key is an absolute path starting with C:\
-            # os.path.join() ignores the entire "key" variable
-            # So we probably have to basedir this
-            # This currently gets stuck after creating the new key:
-"""
-***KEY: RECIPE_REPOS, VALUE: {u'C:\\Users\\nmcspadden\\Documents\\AutoPkg\\RecipeRepos\\com.github.autopkg.recipes': {'URL': 'https://github.com/autopkg/recipes'}}
-***NEW DOMAIN: Software\AutoPkg\RECIPE_REPOS
-***ITER KEY: C:\Users\nmcspadden\Documents\AutoPkg\RecipeRepos\com.github.autopkg.recipes VALUE: {'URL': 'https://github.com/autopkg/recipes'}
-***KEY: C:\Users\nmcspadden\Documents\AutoPkg\RecipeRepos\com.github.autopkg.recipes, VALUE: {'URL': 'https://github.com/autopkg/recipes'}
-***NEW DOMAIN: Software\AutoPkg\RECIPE_REPOS\com.github.autopkg.recipes
-***ITER KEY: URL VALUE: https://github.com/autopkg/recipes
-***KEY: URL, VALUE: https://github.com/autopkg/recipes
-***Unable to open Software\AutoPkg\RECIPE_REPOS\com.github.autopkg.recipes, creating
-"""
+            print "***Key: {} Value: {} Type: {}".format(key, value, type(value))
+            # This special case code for RECIPE_REPOS
+            # Normally, RECIPE_REPOS is an array of dictionaries with a key of
+            # the folder path on disk to a repo, and the value is another
+            # dictionary, whose key is always "URL" and the value is the URL of
+            # the git repo.
+            new_domain = os.path.join(domain, os.path.basename(key))
             print "***NEW DOMAIN: {}".format(new_domain)
-            _winreg.CreateKey(reg_key, key)
+            new_dict = {}
             for (k, v) in value.iteritems():
                 print "***ITER KEY: {} VALUE: {}".format(k, v)
+                new_dict[k] = v['URL']
+            print "***NEW DICTIONARY: {}".format(new_dict)
+            for (k, v) in new_dict.iteritems():
                 set_pref_win(k, v, new_domain)
-            # TODO: FINISH THIS!!!
+            # # TODO: FINISH THIS!!!
             return
         if isinstance(value, list):
             key_type = _winreg.REG_MULTI_SZ
@@ -246,7 +239,6 @@ def set_pref_win(key, value, domain=get_domain()):
             key_type = _winreg.REG_SZ
         elif isinstance(value, int) or isinstance(value, bool):
             key_type = _winreg.REG_DWORD
-        _winreg.CreateKey(reg_key, key)
         _winreg.SetValueEx(reg_key, key, 0, key_type, value)
         _winreg.CloseKey(reg_key)
     except (WindowsError, TypeError) as e:
