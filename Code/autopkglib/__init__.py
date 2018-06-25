@@ -225,13 +225,21 @@ def set_pref_win(key, value, domain=get_domain()):
             new_domain = os.path.join(domain, os.path.basename(key))
             print "***NEW DOMAIN: {}".format(new_domain)
             new_dict = {}
+            # Because dictionaries aren't a thing in the registry, we have to
+            # create a subkey instead. The subkey will be RECIPE_REPOS, but
+            # instead of a dictionary containing a key, "URL" and the URL,
+            # we're just going to map the absolute path on disk to the URL
+            # directly as a key-value pair in the subkey.
+            # To do this, we create a new simple dictionary mapping.
+            # There's probably a more efficient way to do this.
             for (k, v) in value.iteritems():
                 print "***ITER KEY: {} VALUE: {}".format(k, v)
                 new_dict[k] = v['URL']
             print "***NEW DICTIONARY: {}".format(new_dict)
             for (k, v) in new_dict.iteritems():
+                # Now that we have simple key-value pairs, we can create each
+                # key individually.
                 set_pref_win(k, v, new_domain)
-            # # TODO: FINISH THIS!!!
             return
         if isinstance(value, list):
             key_type = _winreg.REG_MULTI_SZ
