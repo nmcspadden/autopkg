@@ -54,6 +54,7 @@ def getxattr(pathname, attr):
     """Get a named ADS from a file. Return None if not present."""
     handler = pyads.ADS(pathname)
     if handler.has_streams():
+        print "***getxattr: attr: {} value: {}".format(attr, handler.get_stream_content(attr))
         return handler.get_stream_content(attr)
     return None
 
@@ -208,11 +209,12 @@ class WinURLDownloader(Processor):
             etag = getxattr(pathname, XATTR_ETAG)
             last_modified = getxattr(pathname, XATTR_LAST_MODIFIED)
             if etag:
-                curl_cmd.extend(['--header', 'If-None-Match: \"%s\"' % etag])
+                curl_cmd.extend(['--header', 'If-None-Match: %s' % etag])
             if last_modified:
                 curl_cmd.extend(
                     ['--header', 'If-Modified-Since: \"%s\"' % last_modified])
 
+        self.output(curl_cmd)
         # Open URL.
         proc = subprocess.Popen(curl_cmd, shell=False, bufsize=1,
                                 stdin=subprocess.PIPE,
@@ -291,6 +293,10 @@ class WinURLDownloader(Processor):
 
             raise ProcessorError( "Curl failure: %s (exit code %s)" % (curlerr, retcode) )
 
+        # On Windows, you must close the file handler before attempting
+        # to move the file or otherwise manipulate it.
+        temporary_file.close()
+
         # If Content-Length header is present and we had a cached
         # file, see if it matches the size of the cached file.
         # Useful for webservers that don't provide Last-Modified
@@ -317,7 +323,6 @@ class WinURLDownloader(Processor):
 
             # Discard the temp file
             os.remove(pathname_temporary)
-
             return
 
         self.env["download_changed"] = True
@@ -327,9 +332,6 @@ class WinURLDownloader(Processor):
         if os.path.exists(pathname):
             os.remove(pathname)
         try:
-            # On Windows, you must close the file handler before attempting
-            # to move the file
-            temporary_file.close()
             os.rename(pathname_temporary, pathname)
         except OSError as e:
             raise ProcessorError(
