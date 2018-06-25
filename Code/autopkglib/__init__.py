@@ -75,6 +75,8 @@ if is_mac():
 elif is_windows():
     import _winreg
     import plistlib
+    NSArray = list
+    NSDictionary = dict
 #pylint: enable=no-name-in-module
 
 
