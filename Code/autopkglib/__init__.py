@@ -141,6 +141,7 @@ def get_pref_win(key, domain=get_domain()):
         else:
             # Probably an int or bool
             value = raw_value
+        print "***get_pref_win: DOMAIN: {} KEY: {} VALUE: {}".format(domain, key, value)
         return value
     except WindowsError as e:
         # If we can't access the registry key, assume None

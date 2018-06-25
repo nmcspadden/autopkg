@@ -35,6 +35,7 @@ from urllib import quote
 from urlparse import urlparse
 
 import autopkglib.github
+from autopkglib import is_mac, is_windows
 from autopkglib import get_pref, get_all_prefs
 from autopkglib import set_pref, PreferenceError
 from autopkglib import AutoPackagerError, AutoPackager
@@ -617,6 +618,13 @@ def get_search_dirs():
         ".",
         "~/Library/AutoPkg/Recipes",
         "/Library/AutoPkg/Recipes"
+    ]
+
+    if is_windows():
+        default = [
+            ".",
+            "%APPDATA%\AutoPkg\Recipes",
+            "%ALLUSERSPROFILE%\AutoPkg\Recipes",
         ]
 
     dirs = get_pref("RECIPE_SEARCH_DIRS")
