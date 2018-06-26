@@ -21,7 +21,7 @@ import subprocess
 import time
 import tempfile
 
-from autopkglib import Processor, ProcessorError
+from autopkglib import Processor, ProcessorError, is_mac, is_windows
 try:
     from autopkglib import BUNDLE_ID
 except ImportError:
@@ -30,7 +30,8 @@ except ImportError:
 try:
     import xattr
 except ImportError:
-    from autopkglib.pyads import pyads
+    if is_windows():
+        from autopkglib.pyads import pyads
 
 __all__ = ["URLDownloader"]
 
@@ -40,11 +41,33 @@ XATTR_LAST_MODIFIED = "%s.last-modified" % BUNDLE_ID
 
 
 def getxattr(pathname, attr):
-    """Get a named xattr from a file. Return None if not present"""
-    if attr in xattr.listxattr(pathname):
-        return xattr.getxattr(pathname, attr)
-    else:
+    """Get a named xattr/ads from a file. Return None if not present"""
+    if is_mac():
+        if attr in xattr.listxattr(pathname):
+            return xattr.getxattr(pathname, attr)
         return None
+    if is_windows():
+        handler = pyads.ADS(pathname)
+        if handler.has_streams():
+            return handler.get_stream_content(attr)
+        return None
+
+
+def setxattr(pathname, attr, content):
+    """Set an xattr/named ADS on a file."""
+    if is_mac():
+        xattr.setxattr(pathname, attr, content)
+    if is_windows():
+        handler = pyads.ADS(pathname)
+        handler.add_stream_from_string(attr, content)
+
+
+def default_curl_path():
+    """Return default curl path for platform."""
+    if is_mac():
+        return '/usr/bin/curl'
+    if is_windows():
+        return "C:\Program Files\curl\i386\curl.exe"
 
 
 class URLDownloader(Processor):
@@ -98,8 +121,9 @@ class URLDownloader(Processor):
         },
         "CURL_PATH": {
             "required": False,
-            "default": "/usr/bin/curl",
-            "description": "Path to curl binary. Defaults to /usr/bin/curl.",
+            "default": default_curl_path(),
+            "description": ("Path to curl binary. Defaults to %s." %
+                default_curl_path)
         },
     }
     output_variables = {
@@ -142,8 +166,8 @@ class URLDownloader(Processor):
             filename = self.env["url"].rpartition("/")[2]
         else:
             filename = self.env["filename"]
-        download_dir = (self.env.get("download_dir") or
-                        os.path.join(self.env["RECIPE_CACHE_DIR"], "downloads"))
+        download_dir = os.path.expandvars((self.env.get("download_dir") or
+                        os.path.join(self.env["RECIPE_CACHE_DIR"], "downloads")))
         pathname = os.path.join(download_dir, filename)
         # Save pathname to environment
         self.env["pathname"] = pathname
@@ -165,7 +189,8 @@ class URLDownloader(Processor):
         # this can cause issues if this item is eventually copied to a Munki repo
         # with the same permissions and the file is inaccessible by (for example)
         # the webserver.
-        os.chmod(pathname_temporary, 0644)
+        if is_mac():
+            os.chmod(pathname_temporary, 0644)
 
         # construct curl command.
         curl_cmd = [self.env['CURL_PATH'],
@@ -280,6 +305,11 @@ class URLDownloader(Processor):
 
             raise ProcessorError( "Curl failure: %s (exit code %s)" % (curlerr, retcode) )
 
+        # On Windows, you must close the file handler before attempting
+        # to move the file or otherwise manipulate it.
+        if is_windows():
+            temporary_file.close()
+
         # If Content-Length header is present and we had a cached
         # file, see if it matches the size of the cached file.
         # Useful for webservers that don't provide Last-Modified
@@ -325,7 +355,7 @@ class URLDownloader(Processor):
         if header.get("last-modified"):
             self.env["last_modified"] = (
                 header.get("last-modified"))
-            xattr.setxattr(
+            setxattr(
                 pathname, XATTR_LAST_MODIFIED,
                 header.get("last-modified"))
             self.output(
@@ -336,7 +366,7 @@ class URLDownloader(Processor):
         self.env["etag"] = ""
         if header.get("etag"):
             self.env["etag"] = header.get("etag")
-            xattr.setxattr(
+            setxattr(
                 pathname, XATTR_ETAG, header.get("etag"))
             self.output("Storing new ETag header: %s"
                         % header.get("etag"))
