@@ -23,6 +23,7 @@ from glob import glob
 from distutils.version import StrictVersion
 from autopkglib import ProcessorError
 from autopkglib.DmgMounter import DmgMounter
+from autopkglib import is_mac
 
 __all__ = ["CodeSignatureVerifier"]
 
@@ -251,6 +252,9 @@ class CodeSignatureVerifier(DmgMounter):
                 self.output("Authority name chain is valid")
 
     def main(self):
+        if not is_mac():
+            self.output("Not on macOS, not running Code Signature Verification")
+            return
         if self.env.get('DISABLE_CODE_SIGNATURE_VERIFICATION'):
             self.output("Code signature verification disabled for this recipe "
                         "run.")
