@@ -653,10 +653,10 @@ class AutoPackager(object):
         """Process a recipe."""
         identifier = self.get_recipe_identifier(recipe)
         # define a cache/work directory for use by the recipe
-        cache_dir = self.env.get("CACHE_DIR") or os.path.expanduser(
+        cache_dir = os.path.expandvars(self.env.get("CACHE_DIR")) or os.path.expanduser(
             "~/Library/AutoPkg/Cache")
-        self.env["RECIPE_CACHE_DIR"] = os.path.join(
-            cache_dir, identifier)
+        self.env["RECIPE_CACHE_DIR"] = os.path.expandvars(os.path.join(
+            cache_dir, identifier))
 
         recipe_input_dict = {}
         for key in self.env.keys():
