@@ -143,35 +143,10 @@ def get_pref_win(key, domain=get_domain()):
         else:
             # Probably an int or bool
             value = raw_value
-        print "***get_pref_win: DOMAIN: {} KEY: {} VALUE: {}".format(domain, key, value)
         return value
     except WindowsError as e:
         # If we can't access the registry key, assume None
         return None
-    """
->>> key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Software\AutoPkg")
->>> try:
-...   i = 0
-...   while True:
-...     name, value, type = _winreg.EnumValue(key, i)
-...     print repr(name),
-...     i += 1
-... except WindowsError:
-...   print
-...
-'CACHE_DIR' 'MUNKI_REPO' 'RECIPE_REPO_DIR' 'GIT_PATH' 'RECIPE_SEARCH_DIRS' 'RECIPE_OVERRIDE_DIRS'
-Querying a key:
->>> _winreg.QueryValueEx(key, "CACHE_DIR")
-(u'%USERPROFILE%\\Documents\\AutoPkg\\Cache', 2)
->>> cache_dir = _winreg.QueryValueEx(key, "CACHE_DIR")
->>> os.path.expandvars(cache_dir[0])
-u'C:\\Users\\nmcspadden\\Documents\\AutoPkg\\Cache'
-Setting a key:
->>> key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Software\AutoPkg", 0, _winreg.KEY_ALL_ACCESS)
->>> _winreg.SetValueEx(key, "RECIPE_SEARCH_DIRS", 0, _winreg.REG_MULTI_SZ, ["path1", "path2"])
->>> _winreg.QueryValueEx(key, "RECIPE_SEARCH_DIRS")
-([u'path1', u'path2'], 7)
-"""
 
 
 def set_pref(key, value, domain=get_domain()):
@@ -196,7 +171,6 @@ def set_pref_mac(key, value, domain=get_domain()):
 
 def set_pref_win(key, value, domain=get_domain()):
     """Set a value for a Windows registry key."""
-    print "***Calling set_pref_win, KEY: {}, VALUE: {} DOMAIN: {}".format(key, value, domain)
     try:
         reg_key = _winreg.OpenKey(
             _winreg.HKEY_CURRENT_USER,
@@ -205,7 +179,6 @@ def set_pref_win(key, value, domain=get_domain()):
             _winreg.KEY_WRITE
         )
     except WindowsError as e:
-        print "***Unable to open {}, creating: {}".format(domain, e)
         # If we can't open the key, try creating it!
         try:
             reg_key = _winreg.CreateKey(
@@ -219,14 +192,12 @@ def set_pref_win(key, value, domain=get_domain()):
     try:
         key_type = _winreg.REG_NONE
         if isinstance(value, dict):
-            print "***Key: {} Value: {} Type: {}".format(key, value, type(value))
             # This special case code for RECIPE_REPOS
             # Normally, RECIPE_REPOS is an array of dictionaries with a key of
             # the folder path on disk to a repo, and the value is another
             # dictionary, whose key is always "URL" and the value is the URL of
             # the git repo.
             new_domain = os.path.join(domain, os.path.basename(key))
-            print "***NEW DOMAIN: {}".format(new_domain)
             new_dict = {}
             # Because dictionaries aren't a thing in the registry, we have to
             # create a subkey instead. The subkey will be RECIPE_REPOS, but
@@ -236,9 +207,7 @@ def set_pref_win(key, value, domain=get_domain()):
             # To do this, we create a new simple dictionary mapping.
             # There's probably a more efficient way to do this.
             for (k, v) in value.iteritems():
-                print "***ITER KEY: {} VALUE: {}".format(k, v)
                 new_dict[k] = v['URL']
-            print "***NEW DICTIONARY: {}".format(new_dict)
             for (k, v) in new_dict.iteritems():
                 # Now that we have simple key-value pairs, we can create each
                 # key individually.
@@ -292,7 +261,6 @@ def get_all_prefs_mac(domain=get_domain()):
 
 def get_all_prefs_win(domain=get_domain()):
     """Get all preferences from the AutoPkg registry key."""
-    print "***get_all_prefs_win: DOMAIN: {}".format(domain)
     # Create a dictionary of a registry key.
     reg_dict = {}
     try:
@@ -306,26 +274,22 @@ def get_all_prefs_win(domain=get_domain()):
             try:
                 (keyname, value, type) = _winreg.EnumValue(reg_key, i)
                 reg_dict[keyname] = value
-                print "***Key: {} Value: {} Index: {}".format(keyname, value, i)
                 i += 1
             except WindowsError:
                 # We've run out of subkeys to index
                 break
-        print "***Now checking subfolders"
         # Now get all the subfolders
         i = 0
         while True:
             try:
                 subkeyname = _winreg.EnumKey(reg_key, i)
                 new_domain = os.path.join(domain, subkeyname)
-                print "***Recursing: Key: {} Index: {}".format(new_domain, i)
-                # RECURSION!!!!
+                # Recursively call this function for nested subkeys
                 reg_dict[subkeyname] = get_all_prefs_win(new_domain)
                 i += 1
             except WindowsError:
                 # We've run out of subfolders to index
                 break
-        print "***Reg_dict: {}".format(reg_dict)
         return reg_dict
     except WindowsError as e:
         raise ProcessorError(
