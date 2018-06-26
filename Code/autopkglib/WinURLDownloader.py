@@ -54,7 +54,6 @@ def getxattr(pathname, attr):
     """Get a named ADS from a file. Return None if not present."""
     handler = pyads.ADS(pathname)
     if handler.has_streams():
-        print "***getxattr: attr: {} value: {}".format(attr, handler.get_stream_content(attr))
         return handler.get_stream_content(attr)
     return None
 
@@ -214,7 +213,6 @@ class WinURLDownloader(Processor):
                 curl_cmd.extend(
                     ['--header', 'If-Modified-Since: \"%s\"' % last_modified])
 
-        self.output(curl_cmd)
         # Open URL.
         proc = subprocess.Popen(curl_cmd, shell=False, bufsize=1,
                                 stdin=subprocess.PIPE,
@@ -337,7 +335,6 @@ class WinURLDownloader(Processor):
             raise ProcessorError(
                 "Can't move %s to %s: %s" % (pathname_temporary, pathname, e))
 
-        print "****SAVING LAST MODIFIED"
         # save last-modified header if it exists
         if header.get("last-modified"):
             self.env["last_modified"] = (
@@ -349,7 +346,6 @@ class WinURLDownloader(Processor):
                 "Storing new Last-Modified header: %s"
                 % header.get("last-modified"))
 
-        print "****SAVING ETAG"
         # save etag if it exists
         self.env["etag"] = ""
         if header.get("etag"):
