@@ -19,7 +19,6 @@
 import os
 import sys
 import imp
-import FoundationPlist
 import pprint
 import platform
 import re
@@ -60,6 +59,7 @@ def is_windows():
 #pylint: disable=no-name-in-module
 if is_mac():
     try:
+        import FoundationPlist
         from Foundation import NSArray, NSDictionary
         from CoreFoundation import CFPreferencesAppSynchronize, \
                                    CFPreferencesCopyAppValue, \
@@ -74,9 +74,10 @@ if is_mac():
         print "WARNING: Failed 'from CoreFoundation import CFPreferencesAppSynchronize, ...' in " + __name__
 elif is_windows():
     import _winreg
-    import plistlib
+    import plistlib as FoundationPlist
     NSArray = list
     NSDictionary = dict
+    FoundationPlist.FoundationPlistException = Exception
 #pylint: enable=no-name-in-module
 
 
