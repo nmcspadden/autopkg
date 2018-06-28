@@ -18,8 +18,9 @@
 import os
 import subprocess
 import shutil
+import zipfile
 
-from autopkglib import Processor, ProcessorError
+from autopkglib import Processor, ProcessorError, is_mac, is_windows
 
 
 __all__ = ["Unarchiver"]
@@ -141,6 +142,15 @@ class Unarchiver(Processor):
             elif fmt.endswith("bzip2"):
                 cmd.append("-j")
 
+        if is_windows():
+            cmd = [
+                "powershell.exe",
+                "Expand-Archive",
+                "-Path", archive_path,
+                "-DestinationPath", destination_path,
+                "-Force",
+            ]
+
         # Call command.
         try:
             proc = subprocess.Popen(cmd,
@@ -161,4 +171,3 @@ class Unarchiver(Processor):
 if __name__ == '__main__':
     PROCESSOR = Unarchiver()
     PROCESSOR.execute_shell()
-
