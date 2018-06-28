@@ -48,7 +48,7 @@ def getxattr(pathname, attr):
         return None
     if is_windows():
         handler = pyads.ADS(pathname)
-        if handler.has_streams():
+        if handler.has_streams() and attr in handler.init_streams():
             return handler.get_stream_content(attr)
         return None
 
