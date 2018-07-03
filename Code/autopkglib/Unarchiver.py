@@ -145,6 +145,7 @@ class Unarchiver(Processor):
         if is_windows():
             cmd = [
                 "powershell.exe",
+                "$progressPreference = 'silentlyContinue';"
                 "Expand-Archive",
                 "-Path", archive_path,
                 "-DestinationPath", destination_path,
