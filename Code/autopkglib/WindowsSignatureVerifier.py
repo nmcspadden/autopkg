@@ -91,7 +91,10 @@ class WindowsSignatureVerifier(DmgMounter):
         )
         (out, err) = proc.communicate()
         data = json.loads(out)
-        if data['SignerCertificate']['Subject'] != self.env['expected_subject']:
+        if (
+            data['Status'] != 0 or
+            data['SignerCertificate']['Subject'] != self.env['expected_subject']
+        ):
             raise ProcessorError(
                 "Code signature mismatch! Expected %s but "
                 "received %s" % (
