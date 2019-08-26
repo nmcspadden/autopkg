@@ -188,6 +188,14 @@ To save the token, paste it to the following prompt."""
                                 if proc.stdout.readline().strip("\r\n"):
                                     continue
                                 break
+                        elif info.startswith("Via: HTTP/"):
+                            # If this is running through a proxy, there will be an extra
+                            # block of headers beginning with "Via: HTTP/" and ending in
+                            # an empty line. After that, the *normal* headers start,
+                            # producing a new stanza that also ends in a blank line.
+                            while True:
+                                if proc.stdout.readline().strip("\r\n"):
+                                    continue
                         elif ": " in info:
                             part = info.split(None, 1)
                             fieldname = part[0].rstrip(":").lower()
