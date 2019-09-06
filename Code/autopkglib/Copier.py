@@ -55,7 +55,7 @@ class Copier(DmgMounter):
 
     __doc__ = description
 
-    def copy(self, source_item, dest_item, overwrite=False):
+    def copy(self, source_item, dest_item, overwrite=OVERWRITE_DEFAULT):
         """Copies source_item to dest_item, overwriting if allowed"""
         # Remove destination if needed.
         if os.path.exists(dest_item) and overwrite:
