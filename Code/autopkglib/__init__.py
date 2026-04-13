@@ -28,7 +28,6 @@ import subprocess
 import sys
 import traceback
 from copy import deepcopy
-from distutils.version import LooseVersion
 from typing import IO, Any, Union
 
 import appdirs
@@ -416,9 +415,9 @@ def get_autopkg_version() -> str:
 
 
 def version_equal_or_greater(this, that) -> bool:
-    """Compares two LooseVersion objects. Returns True if this is
+    """Compares two version strings. Returns True if this is
     equal to or greater than that"""
-    return LooseVersion(this) >= LooseVersion(that)
+    return APLooseVersion(this) >= APLooseVersion(that)
 
 
 def update_data(a_dict, key, value) -> None:
@@ -950,8 +949,26 @@ def _cmp(x, y) -> int:
     return (x > y) - (x < y)
 
 
-class APLooseVersion(LooseVersion):
-    """Subclass of distutils.version.LooseVersion to fix issues under Python 3"""
+class APLooseVersion:
+    """Loose version comparison, replacing distutils.version.LooseVersion.
+
+    Parses a version string into a list of integer and string components,
+    then compares component-wise with padding."""
+
+    component_re = re.compile(r"(\d+|[a-zA-Z]+)")
+
+    def __init__(self, vstring: str) -> None:
+        self.vstring = str(vstring)
+        self.version = tuple(
+            int(x) if x.isdigit() else x
+            for x in self.component_re.findall(self.vstring)
+        )
+
+    def __str__(self) -> str:
+        return self.vstring
+
+    def __repr__(self) -> str:
+        return f"APLooseVersion('{self.vstring}')"
 
     def _pad(self, version_list, max_length) -> list:
         """Pad a version list by adding extra 0 components to the end if needed."""
@@ -962,8 +979,8 @@ class APLooseVersion(LooseVersion):
         return cmp_list
 
     def _compare(self, other) -> int:
-        """Complete comparison mechanism since LooseVersion's is broken in Python 3."""
-        if not isinstance(other, (LooseVersion, APLooseVersion)):
+        """Complete comparison mechanism for version objects."""
+        if not isinstance(other, APLooseVersion):
             other = APLooseVersion(other)
         max_length = max(len(self.version), len(other.version))
         self_cmp_version = self._pad(self.version, max_length)

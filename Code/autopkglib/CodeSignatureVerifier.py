@@ -19,10 +19,9 @@ import os.path
 import re
 import subprocess
 import sys
-from distutils.version import StrictVersion
 from glob import glob
 
-from autopkglib import ProcessorError
+from autopkglib import APLooseVersion, ProcessorError
 from autopkglib.DmgMounter import DmgMounter
 
 __all__ = ["CodeSignatureVerifier"]
@@ -125,7 +124,7 @@ class CodeSignatureVerifier(DmgMounter):
 
         # Use --deep option in OS X 10.9.5 or later
         darwin_version = os.uname()[2]
-        if StrictVersion(darwin_version) >= StrictVersion("13.4.0"):
+        if APLooseVersion(darwin_version) >= APLooseVersion("13.4.0"):
             if deep_verification:
                 self.output("Deep verification enabled...")
                 process.append("--deep")
@@ -133,7 +132,7 @@ class CodeSignatureVerifier(DmgMounter):
                 self.output("Deep verification disabled...")
 
         # Use --strict option in OS X 10.11 or later and only if requested by the recipe
-        if StrictVersion(darwin_version) >= StrictVersion("15.0"):
+        if APLooseVersion(darwin_version) >= APLooseVersion("15.0"):
             if strict_verification is None:
                 self.output(
                     "Strict verification not defined. Using codesign defaults..."
@@ -345,7 +344,7 @@ class CodeSignatureVerifier(DmgMounter):
             if file_extension in [".pkg", ".mpkg", ".xip"]:
                 # Check the kernel version to make sure we're running on
                 # 10.7 or later (10.6.8 == Darwin Kernel Version 10.8.0)
-                if StrictVersion(darwin_version) >= StrictVersion("11.0"):
+                if APLooseVersion(darwin_version) >= APLooseVersion("11.0"):
                     self.process_installer_package(matched_input_path)
                 else:
                     self.output(
